@@ -17,5 +17,6 @@ class KookMessageType(IntEnum):
 @dataclass
 class OrderMessage:
     index: int
-    message: str
+    text: str
     type: KookMessageType
+    reply_id: str | int = ""

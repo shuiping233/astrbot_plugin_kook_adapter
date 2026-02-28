@@ -300,8 +300,10 @@ class KookClient:
         channel_id: str,
         content: str,
         message_type: KookMessageType,
+        reply_message_id: str | int = "",
     ):
         """发送文本消息
+        消息发送接口文档参见: https://developer.kookapp.cn/doc/http/message#%E5%8F%91%E9%80%81%E9%A2%91%E9%81%93%E8%81%8A%E5%A4%A9%E6%B6%88%E6%81%AF
         KMarkdown格式参见: https://developer.kookapp.cn/doc/kmarkdown-desc
         """
         url = "https://www.kookapp.cn/api/v3/message/create"
@@ -310,6 +312,8 @@ class KookClient:
             "Content-Type": "application/json",
         }
         payload = {"target_id": channel_id, "content": content, "type": message_type}
+        if reply_message_id:
+            payload["quote"] = reply_message_id
 
         try:
             async with aiohttp.ClientSession() as session:
