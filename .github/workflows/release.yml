@@ -1,12 +1,16 @@
 name: Build and Release
 
+env:
+  previous_tag: ""
+  zip_name: "astrbot_plugin_kook_adapter.zip"
+
 on:
   push:
     branches:
       - main
       - master
     tags:
-      - '*'
+      - "*"
 
 jobs:
   release:
@@ -17,15 +21,25 @@ jobs:
         with:
           fetch-depth: 0 # 获取完整历史以生成准确的 changelog
 
+      - run: echo "previous_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo '')" >> $GITHUB_ENV
+
+      - name: Generate Changelog
+        id: changelog
+        uses: jaywcjlove/changelog-generator@main
+        if: env.previous_tag
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Zip Project
         run: |
-          zip -r astrbot_plugin_kook_adapter.zip . -x "*.git*" "*.github*" "*__pycache__*" "*.pytest_cache*"
+          zip -r ${{ env.zip_name }} . -x "*.git*" "*.github*" "*__pycache__*" "*.pytest_cache*"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
+          body: ${{ steps.changelog.outputs.changelog }}
           files: |
-            astrbot_plugin_kook_adapter.zip
+            ${{ env.zip_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
