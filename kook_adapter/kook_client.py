@@ -314,6 +314,7 @@ class KookClient:
         payload = {"target_id": channel_id, "content": content, "type": message_type}
         if reply_message_id:
             payload["quote"] = reply_message_id
+            payload["reply_msg_id"] = reply_message_id
 
         try:
             async with aiohttp.ClientSession() as session:
