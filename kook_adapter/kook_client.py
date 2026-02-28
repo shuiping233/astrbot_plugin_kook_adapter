@@ -1,4 +1,13 @@
 import asyncio
+import base64
+import json
+import random
+import time
+import zlib
+from pathlib import Path
+
+import aiofiles
+import aiohttp
 import websockets
 import json
 import logging
@@ -6,6 +15,9 @@ import aiohttp
 import zlib
 import time
 import random
+
+from .kook_types import KookMessageType
+
 
 class KookClient:
     def __init__(self, token, event_callback):
@@ -253,19 +265,22 @@ class KookClient:
         
         return success
 
-    async def send_text(self, channel_id, content):
-        """发送文本消息"""
+    async def send_text(
+        self,
+        channel_id: str,
+        content: str,
+        message_type: KookMessageType,
+    ):
+        """发送文本消息
+        KMarkdown格式参见: https://developer.kookapp.cn/doc/kmarkdown-desc
+        """
         url = "https://www.kookapp.cn/api/v3/message/create"
         headers = {
             "Authorization": f"Bot {self.token}",
             "Content-Type": "application/json"
         }
-        payload = {
-            "target_id": channel_id,
-            "content": content,
-            "type": 1
-        }
-        
+        payload = {"target_id": channel_id, "content": content, "type": message_type}
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload) as resp:
@@ -280,32 +295,56 @@ class KookClient:
         except Exception as e:
             logging.error(f"[KOOK] 发送文本消息异常: {e}")
 
-    async def send_image(self, channel_id, image_url):
-        """发送图片消息"""
-        url = "https://www.kookapp.cn/api/v3/message/create"
+    async def upload_asset(self, file_url: str | None) -> str:
+        """上传文件到kook,获得远端资源url
+        接口定义参见: https://developer.kookapp.cn/doc/http/asset
+        """
+        if file_url is None:
+            return ""
+
+        url = "https://www.kookapp.cn/api/v3/asset/create"
         headers = {
             "Authorization": f"Bot {self.token}",
-            "Content-Type": "application/json"
         }
-        payload = {
-            "target_id": channel_id,
-            "content": image_url,
-            "type": 2
-        }
-        
+
+        bytes_data: bytes | None = None
+        filename = "unknown"
+        if file_url.startswith(("http://", "https://")):
+            filename = file_url.split("/")[-1]
+            return file_url
+
+        elif file_url.startswith(("base64://", "base64:///")):
+            # b64_str = file_url.replace("base64:///", "")
+            b64_str = file_url.replace("base64://", "")
+            bytes_data = base64.b64decode(b64_str)
+
+        else:
+            file_url = file_url.replace("file:///", "")
+            file_url = file_url.replace("file://", "")
+            filename = Path(file_url).name
+            async with aiofiles.open(file_url, "rb") as f:
+                bytes_data = await f.read()
+
+        data = aiohttp.FormData()
+        data.add_field("file", bytes_data, filename=filename)
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, json=payload) as resp:
+                async with session.post(url, headers=headers, data=data) as resp:
                     if resp.status == 200:
-                        result = await resp.json()
-                        if result.get('code') == 0:
-                            logging.info(f"[KOOK] 发送图片消息成功")
+                        result: dict = await resp.json()
+                        if result.get("code") == 0:
+                            logger.info("[KOOK] 发送文件消息成功")
+                            remote_url = result["data"]["url"]
+                            logger.debug(f"[KOOK] 文件远端URL: {remote_url}")
+                            return remote_url
                         else:
-                            logging.error(f"[KOOK] 发送图片消息失败: {result}")
+                            logger.error(f"[KOOK] 发送文件消息失败: {result}")
                     else:
-                        logging.error(f"[KOOK] 发送图片消息HTTP错误: {resp.status}")
+                        logger.error(f"[KOOK] 发送文件消息HTTP错误: {resp.status}")
         except Exception as e:
-            logging.error(f"[KOOK] 发送图片消息异常: {e}")
+            logger.error(f"[KOOK] 发送文件消息异常: {e}")
+
+        return ""
 
     async def close(self):
         """关闭连接"""
