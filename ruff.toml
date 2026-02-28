@@ -1,0 +1,10 @@
+src = ["./"]
+exclude = [".git", ".venv", "node_modules", "__pycache__"]
+line-length = 88
+target-version = "py312"
+
+[lint]
+fixable = ["ALL"]
+
+[lint.pydocstyle]
+convention = "google"
