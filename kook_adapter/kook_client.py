@@ -1,12 +1,13 @@
 import asyncio
 import json
-import logging
 import random
 import time
 import zlib
 
 import aiohttp
 import websockets
+
+from astrbot import logger
 
 
 class KookClient:
@@ -40,21 +41,21 @@ class KookClient:
             try:
                 async with session.get(url, headers=self.headers) as resp:
                     if resp.status != 200:
-                        logging.error(
+                        logger.error(
                             f"[KOOK] 获取机器人账号ID失败，状态码: {resp.status}"
                         )
                         return ""
 
                     data = await resp.json()
                     if data.get("code") != 0:
-                        logging.error(f"[KOOK] 获取机器人账号ID失败: {data}")
+                        logger.error(f"[KOOK] 获取机器人账号ID失败: {data}")
                         return ""
 
                     bot_id: str = data["data"]["id"]
-                    logging.info(f"[KOOK] 获取机器人账号ID成功: {bot_id}")
+                    logger.info(f"[KOOK] 获取机器人账号ID成功: {bot_id}")
                     return bot_id
             except Exception as e:
-                logging.error(f"[KOOK] 获取机器人账号ID异常: {e}")
+                logger.error(f"[KOOK] 获取机器人账号ID异常: {e}")
                 return ""
 
     async def get_gateway_url(self, resume=False, sn=0, session_id=None):
@@ -75,19 +76,19 @@ class KookClient:
                     url, headers=self.headers, params=params
                 ) as resp:
                     if resp.status != 200:
-                        logging.error(f"[KOOK] 获取gateway失败，状态码: {resp.status}")
+                        logger.error(f"[KOOK] 获取gateway失败，状态码: {resp.status}")
                         return None
 
                     data = await resp.json()
                     if data.get("code") != 0:
-                        logging.error(f"[KOOK] 获取gateway失败: {data}")
+                        logger.error(f"[KOOK] 获取gateway失败: {data}")
                         return None
 
                     gateway_url = data["data"]["url"]
-                    logging.info(f"[KOOK] 获取gateway成功: {gateway_url}")
+                    logger.info(f"[KOOK] 获取gateway成功: {gateway_url}")
                     return gateway_url
             except Exception as e:
-                logging.error(f"[KOOK] 获取gateway异常: {e}")
+                logger.error(f"[KOOK] 获取gateway异常: {e}")
                 return None
 
     async def connect(self, resume=False):
@@ -109,7 +110,7 @@ class KookClient:
             # 连接WebSocket
             self.ws = await websockets.connect(gateway_url)
             self.running = True
-            logging.info("[KOOK] WebSocket 连接成功")
+            logger.info("[KOOK] WebSocket 连接成功")
 
             # 启动心跳任务
             if self.heartbeat_task:
@@ -121,7 +122,7 @@ class KookClient:
             return True
 
         except Exception as e:
-            logging.error(f"[KOOK] WebSocket 连接失败: {e}")
+            logger.error(f"[KOOK] WebSocket 连接失败: {e}")
             return False
 
     async def listen(self):
@@ -135,11 +136,11 @@ class KookClient:
                         try:
                             msg = zlib.decompress(msg)
                         except Exception as e:
-                            logging.error(f"[KOOK] 解压消息失败: {e}")
+                            logger.error(f"[KOOK] 解压消息失败: {e}")
                             continue
                         msg = msg.decode("utf-8")
 
-                    logging.debug(f"[KOOK] 收到原始消息: {msg}")
+                    logger.debug(f"[KOOK] 收到原始消息: {msg}")
                     data = json.loads(msg)
 
                     # 处理不同类型的信令
@@ -149,14 +150,14 @@ class KookClient:
                     # 超时检查，继续循环
                     continue
                 except websockets.exceptions.ConnectionClosed:
-                    logging.warning("[KOOK] WebSocket连接已关闭")
+                    logger.warning("[KOOK] WebSocket连接已关闭")
                     break
                 except Exception as e:
-                    logging.error(f"[KOOK] 消息处理异常: {e}")
+                    logger.error(f"[KOOK] 消息处理异常: {e}")
                     break
 
         except Exception as e:
-            logging.error(f"[KOOK] WebSocket 监听异常: {e}")
+            logger.error(f"[KOOK] WebSocket 监听异常: {e}")
         finally:
             self.running = False
 
@@ -183,7 +184,7 @@ class KookClient:
             await self._handle_resume_ack(data)
 
         else:
-            logging.debug(f"[KOOK] 未处理的信令类型: {signal_type}")
+            logger.debug(f"[KOOK] 未处理的信令类型: {signal_type}")
 
     async def _handle_hello(self, data):
         """处理HELLO握手"""
@@ -192,24 +193,24 @@ class KookClient:
 
         if code == 0:
             self.session_id = hello_data.get("session_id")
-            logging.info(f"[KOOK] 握手成功，session_id: {self.session_id}")
+            logger.info(f"[KOOK] 握手成功，session_id: {self.session_id}")
             # 重置重连延迟
             self.reconnect_delay = 1
         else:
-            logging.error(f"[KOOK] 握手失败，错误码: {code}")
+            logger.error(f"[KOOK] 握手失败，错误码: {code}")
             if code == 40103:  # token过期
-                logging.error("[KOOK] Token已过期，需要重新获取")
+                logger.error("[KOOK] Token已过期，需要重新获取")
             self.running = False
 
     async def _handle_pong(self, data):
         """处理PONG心跳响应"""
         self.last_heartbeat_time = time.time()
         self.heartbeat_failed_count = 0
-        logging.debug("[KOOK] 收到心跳响应")
+        logger.debug("[KOOK] 收到心跳响应")
 
     async def _handle_reconnect(self, data):
         """处理重连指令"""
-        logging.warning("[KOOK] 收到重连指令")
+        logger.warning("[KOOK] 收到重连指令")
         # 清空本地状态
         self.last_sn = 0
         self.session_id = None
@@ -219,7 +220,7 @@ class KookClient:
         """处理RESUME确认"""
         resume_data = data.get("d", {})
         self.session_id = resume_data.get("session_id")
-        logging.info(f"[KOOK] Resume成功，session_id: {self.session_id}")
+        logger.info(f"[KOOK] Resume成功，session_id: {self.session_id}")
 
     async def _heartbeat_loop(self):
         """心跳循环"""
@@ -241,19 +242,19 @@ class KookClient:
                 # 检查是否收到PONG响应
                 if time.time() - self.last_heartbeat_time > self.heartbeat_timeout:
                     self.heartbeat_failed_count += 1
-                    logging.warning(
+                    logger.warning(
                         f"[KOOK] 心跳超时，失败次数: {self.heartbeat_failed_count}"
                     )
 
                     if self.heartbeat_failed_count >= self.max_heartbeat_failures:
-                        logging.error("[KOOK] 心跳失败次数过多，准备重连")
+                        logger.error("[KOOK] 心跳失败次数过多，准备重连")
                         self.running = False
                         break
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logging.error(f"[KOOK] 心跳异常: {e}")
+                logger.error(f"[KOOK] 心跳异常: {e}")
                 self.heartbeat_failed_count += 1
 
     async def _send_ping(self):
@@ -261,13 +262,13 @@ class KookClient:
         try:
             ping_data = {"s": 2, "sn": self.last_sn}
             await self.ws.send(json.dumps(ping_data))
-            logging.debug(f"[KOOK] 发送心跳，sn: {self.last_sn}")
+            logger.debug(f"[KOOK] 发送心跳，sn: {self.last_sn}")
         except Exception as e:
-            logging.error(f"[KOOK] 发送心跳失败: {e}")
+            logger.error(f"[KOOK] 发送心跳失败: {e}")
 
     async def reconnect(self):
         """重连方法"""
-        logging.info(f"[KOOK] 开始重连，延迟: {self.reconnect_delay}秒")
+        logger.info(f"[KOOK] 开始重连，延迟: {self.reconnect_delay}秒")
         await asyncio.sleep(self.reconnect_delay)
 
         # 关闭当前连接
@@ -279,13 +280,13 @@ class KookClient:
         if success:
             # 重连成功，重置延迟
             self.reconnect_delay = 1
-            logging.info("[KOOK] 重连成功")
+            logger.info("[KOOK] 重连成功")
         else:
             # 重连失败，增加延迟（指数退避）
             self.reconnect_delay = min(
                 self.reconnect_delay * 2, self.max_reconnect_delay
             )
-            logging.warning(f"[KOOK] 重连失败，下次延迟: {self.reconnect_delay}秒")
+            logger.warning(f"[KOOK] 重连失败，下次延迟: {self.reconnect_delay}秒")
 
         return success
 
@@ -304,13 +305,13 @@ class KookClient:
                     if resp.status == 200:
                         result = await resp.json()
                         if result.get("code") == 0:
-                            logging.info(f"[KOOK] 发送文本消息成功")
+                            logger.info(f"[KOOK] 发送文本消息成功")
                         else:
-                            logging.error(f"[KOOK] 发送文本消息失败: {result}")
+                            logger.error(f"[KOOK] 发送文本消息失败: {result}")
                     else:
-                        logging.error(f"[KOOK] 发送文本消息HTTP错误: {resp.status}")
+                        logger.error(f"[KOOK] 发送文本消息HTTP错误: {resp.status}")
         except Exception as e:
-            logging.error(f"[KOOK] 发送文本消息异常: {e}")
+            logger.error(f"[KOOK] 发送文本消息异常: {e}")
 
     async def send_image(self, channel_id, image_url):
         """发送图片消息"""
@@ -327,13 +328,13 @@ class KookClient:
                     if resp.status == 200:
                         result = await resp.json()
                         if result.get("code") == 0:
-                            logging.info(f"[KOOK] 发送图片消息成功")
+                            logger.info(f"[KOOK] 发送图片消息成功")
                         else:
-                            logging.error(f"[KOOK] 发送图片消息失败: {result}")
+                            logger.error(f"[KOOK] 发送图片消息失败: {result}")
                     else:
-                        logging.error(f"[KOOK] 发送图片消息HTTP错误: {resp.status}")
+                        logger.error(f"[KOOK] 发送图片消息HTTP错误: {resp.status}")
         except Exception as e:
-            logging.error(f"[KOOK] 发送图片消息异常: {e}")
+            logger.error(f"[KOOK] 发送图片消息异常: {e}")
 
     async def close(self):
         """关闭连接"""
@@ -350,6 +351,6 @@ class KookClient:
             try:
                 await self.ws.close()
             except Exception as e:
-                logging.error(f"[KOOK] 关闭WebSocket异常: {e}")
+                logger.error(f"[KOOK] 关闭WebSocket异常: {e}")
 
-        logging.info("[KOOK] 连接已关闭")
+        logger.info("[KOOK] 连接已关闭")
