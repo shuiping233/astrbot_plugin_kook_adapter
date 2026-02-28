@@ -22,7 +22,21 @@ class KookPlatformAdapter(Platform):
         self.running = False
         self._main_task = None
 
-    async def send_by_session(self, session: MessageSesion, message_chain: MessageChain):
+    async def send_by_session(
+        self, session: MessageSesion, message_chain: MessageChain
+    ):
+
+        inner_message = AstrBotMessage()
+        inner_message.session_id = session.session_id
+        inner_message.type = session.message_type
+        message_event = KookEvent(
+            message_str="kook",
+            message_obj=inner_message,
+            platform_meta=self.meta(),
+            session_id=session.session_id,
+            client=self.client,
+        )
+        await message_event.send(message_chain)
         await super().send_by_session(session, message_chain)
 
     def meta(self) -> PlatformMetadata:
