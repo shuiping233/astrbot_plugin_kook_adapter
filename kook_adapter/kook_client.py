@@ -10,6 +10,8 @@ import random
 class KookClient:
     def __init__(self, token, event_callback):
         self.token = token
+        self.headers = {"Authorization": f"Bot {self.token}"}
+        self._bot_id = ""
         self.event_callback = event_callback  # 回调函数，用于处理接收到的事件
         self.ws = None
         self.running = False
@@ -24,13 +26,39 @@ class KookClient:
         self.heartbeat_failed_count = 0
         self.max_heartbeat_failures = 3  # 最大心跳失败次数
 
+    @property
+    def bot_id(self):
+        return self._bot_id
+
+    async def get_bot_id(self) -> str:
+        """获取机器人账号ID"""
+        url = "https://www.kookapp.cn/api/v3/user/me"
+
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(url, headers=self.headers) as resp:
+                    if resp.status != 200:
+                        logging.error(
+                            f"[KOOK] 获取机器人账号ID失败，状态码: {resp.status}"
+                        )
+                        return ""
+
+                    data = await resp.json()
+                    if data.get("code") != 0:
+                        logging.error(f"[KOOK] 获取机器人账号ID失败: {data}")
+                        return ""
+
+                    bot_id: str = data["data"]["id"]
+                    logging.info(f"[KOOK] 获取机器人账号ID成功: {bot_id}")
+                    return bot_id
+            except Exception as e:
+                logging.error(f"[KOOK] 获取机器人账号ID异常: {e}")
+                return ""
+
     async def get_gateway_url(self, resume=False, sn=0, session_id=None):
         """获取网关连接地址"""
         url = "https://www.kookapp.cn/api/v3/gateway/index"
-        headers = {
-            "Authorization": f"Bot {self.token}"
-        }
-        
+
         # 构建连接参数
         params = {}
         if resume:
@@ -41,7 +69,9 @@ class KookClient:
         
         async with aiohttp.ClientSession() as session:
             try:
-                async with session.get(url, headers=headers, params=params) as resp:
+                async with session.get(
+                    url, headers=self.headers, params=params
+                ) as resp:
                     if resp.status != 200:
                         logging.error(f"[KOOK] 获取gateway失败，状态码: {resp.status}")
                         return None
@@ -67,10 +97,15 @@ class KookClient:
                 sn=self.last_sn, 
                 session_id=self.session_id
             )
-            
+            bot_id = await self.get_bot_id()
+
             if not gateway_url:
                 return False
-            
+            if not bot_id:
+                return False
+
+            self._bot_id = bot_id
+
             # 连接WebSocket
             self.ws = await websockets.connect(gateway_url)
             self.running = True

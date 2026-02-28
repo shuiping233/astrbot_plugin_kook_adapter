@@ -21,6 +21,7 @@ class KookPlatformAdapter(Platform):
         self._reconnect_task = None
         self.running = False
         self._main_task = None
+        self._bot_id = ""
 
     async def send_by_session(self, session: MessageSesion, message_chain: MessageChain):
         await super().send_by_session(session, message_chain)
@@ -135,7 +136,7 @@ class KookPlatformAdapter(Platform):
         abm.group_id = data.get('target_id')
         abm.sender = MessageMember(user_id=data.get('author_id'), nickname=data.get('extra', {}).get('author', {}).get('username', ''))
         abm.raw_message = data
-        abm.self_id = data.get('author_id')
+        abm.self_id = self.client.bot_id
         abm.session_id = data.get('target_id')
         abm.message_id = data.get('msg_id')
 
