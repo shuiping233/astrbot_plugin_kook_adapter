@@ -1,11 +1,12 @@
 import asyncio
-import websockets
 import json
 import logging
-import aiohttp
-import zlib
-import time
 import random
+import time
+import zlib
+
+import aiohttp
+import websockets
 
 
 class KookClient:
