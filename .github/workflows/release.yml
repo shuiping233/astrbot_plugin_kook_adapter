@@ -51,6 +51,13 @@ jobs:
       - name: Inspect package
         run: zipinfo -1 ${{ env.zip_name }} 
 
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.zip_name }}
+          path: ${{ env.zip_name }}
+          retention-days: 30
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
