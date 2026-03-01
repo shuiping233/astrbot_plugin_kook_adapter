@@ -1,6 +1,6 @@
 import asyncio
-from collections.abc import Coroutine
 import json
+from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
 
@@ -12,12 +12,16 @@ from astrbot.core.message.components import (
     At,
     AtAll,
     BaseMessageComponent,
+    Json,
     Record,
     Reply,
 )
 
 from .kook_client import KookClient
 from .kook_types import (
+    FileModule,
+    KookCardMessage,
+    KookCardMessageContainer,
     KookMessageType,
     OrderMessage,
 )
@@ -50,13 +54,14 @@ class KookEvent(AstrMessageEvent):
             index: int,
             text: str | None,
             reply_id: str | int = "",
+            type: KookMessageType = KookMessageType.KMARKDOWN,
         ):
             if not text:
                 text = ""
             return OrderMessage(
                 index=index,
                 text=text,
-                type=KookMessageType.KMARKDOWN,
+                type=type,
                 reply_id=reply_id,
             )
 
@@ -96,20 +101,19 @@ class KookEvent(AstrMessageEvent):
                     title = f_item.text or Path(file_path).name
                     return OrderMessage(
                         index=index,
-                        text=json.dumps(
+                        text=KookCardMessageContainer(
                             [
-                                {
-                                    "type": "card",
-                                    "modules": [
-                                        {
-                                            "type": "audio",
-                                            "title": title,
-                                            "src": url,
-                                        }
-                                    ],
-                                }
+                                KookCardMessage(
+                                    modules=[
+                                        FileModule(
+                                            type="audio",
+                                            title=title,
+                                            src=url,
+                                        )
+                                    ]
+                                )
                             ]
-                        ),
+                        ).to_json(),
                         type=KookMessageType.CARD,
                     )
 
@@ -123,6 +127,19 @@ class KookEvent(AstrMessageEvent):
             case Reply():
                 return handle_plain(
                     index, message_component.text, reply_id=message_component.id
+                )
+            case Json():
+                json_data = message_component.data
+                # kook卡片json外层得是一个列表
+                if isinstance(json_data, dict):
+                    json_data = [json_data]
+                return handle_plain(
+                    index,
+                    # 考虑到kook可能会更改消息结构,为了能让插件开发者
+                    # 自行根据kook文档描述填卡片json内容,故不做模型校验
+                    # KookCardMessage().model_validate(message_component.data).to_json(),
+                    text=json.dumps(json_data),
+                    type=KookMessageType.CARD,
                 )
             case _:
                 raise NotImplementedError(
@@ -139,6 +156,10 @@ class KookEvent(AstrMessageEvent):
             logger.debug("[Kook] 正在向kook服务器上传文件")
         order_messages = await asyncio.gather(*file_upload_tasks)
         order_messages.sort(key=lambda x: x.index)
+
+        # 考虑到reply可能多次出现在消息链中(虽然大概率不会有人这么用)
+        # 这里还是不对reply进行排序了
+        # order_messages.sort(key=lambda x: 0 if x.reply_id else 1)
 
         reply_id: str | int = ""
         for item in order_messages:
