@@ -32,7 +32,7 @@ jobs:
 
       - name: Zip Project
         run: |
-          zip -r ${{ env.zip_name }} . -x "*.git*" "*.github*" "*__pycache__*" "*.pytest_cache*" "tests/*"
+          zip -r ${{ env.zip_name }} . -x "*.git*" "*.github*" "*__pycache__*" "*.pytest_cache*" "tests/**"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
