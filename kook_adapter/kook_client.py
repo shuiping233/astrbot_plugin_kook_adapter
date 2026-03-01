@@ -322,13 +322,17 @@ class KookClient:
                     if resp.status == 200:
                         result = await resp.json()
                         if result.get("code") == 0:
-                            logger.info(f"[KOOK] 发送文本消息成功")
+                            logger.info("[KOOK] 发送消息成功")
                         else:
-                            logger.error(f"[KOOK] 发送文本消息失败: {result}")
+                            logger.error(
+                                f'[KOOK] 发送kook消息类型"{message_type.name}"失败: {result}'
+                            )
                     else:
-                        logger.error(f"[KOOK] 发送文本消息HTTP错误: {resp.status}")
+                        logger.error(
+                            f'[KOOK] 发送kook消息类型"{message_type.name}"HTTP错误: {resp.status}'
+                        )
         except Exception as e:
-            logger.error(f"[KOOK] 发送文本消息异常: {e}")
+            logger.error(f'[KOOK] 发送kook消息类型"{message_type.name}"异常: {e}')
 
     async def upload_asset(self, file_url: str | None) -> str:
         """上传文件到kook,获得远端资源url
