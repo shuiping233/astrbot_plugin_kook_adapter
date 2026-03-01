@@ -1,0 +1,12 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "python.testing.pytestArgs": [
+        ".",
+        "--capture=no"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "cSpell.words": [
+        "Kmarkdown"
+    ]
+}

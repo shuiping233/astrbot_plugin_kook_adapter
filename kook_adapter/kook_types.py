@@ -102,12 +102,16 @@ class SectionModule(KookCardModelBase):
 
 @dataclass
 class ImageGroupModule(KookCardModelBase):
+    """1 到多张图片的组合"""
+
     elements: list[ImageElement]
     type: str = "image-group"
 
 
 @dataclass
 class ContainerModule(KookCardModelBase):
+    """1 到多张图片的组合，与图片组模块(ImageGroupModule)不同，图片并不会裁切为正方形。多张图片会纵向排列。"""
+
     elements: list[ImageElement]
     type: str = "container"
 
@@ -136,7 +140,7 @@ class FileModule(KookCardModelBase):
     title: str = ""
     type: Literal["file", "audio", "video"] = "file"
     cover: str | None = None
-    """cover 仅音频有效, 是音频的蜂蜜爱你图"""
+    """cover 仅音频有效, 是音频的封面图"""
 
 
 @dataclass

@@ -6,9 +6,12 @@ from typing import Any
 
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
-from astrbot.api.message_components import File, Image, Plain, Video
 from astrbot.api.platform import AstrBotMessage, PlatformMetadata
 from astrbot.core.message.components import (
+    File,
+    Image,
+    Plain,
+    Video,
     At,
     AtAll,
     BaseMessageComponent,
@@ -125,9 +128,7 @@ class KookEvent(AstrMessageEvent):
             case AtAll():
                 return handle_plain(index, "(met)all(met)")
             case Reply():
-                return handle_plain(
-                    index, message_component.text, reply_id=message_component.id
-                )
+                return handle_plain(index, "", reply_id=message_component.id)
             case Json():
                 json_data = message_component.data
                 # kook卡片json外层得是一个列表
@@ -147,7 +148,6 @@ class KookEvent(AstrMessageEvent):
                 )
 
     async def send(self, message: MessageChain):
-
         file_upload_tasks: list[Coroutine[Any, Any, OrderMessage]] = []
         for index, item in enumerate(message.chain):
             file_upload_tasks.append(self._warp_message(index, item))
