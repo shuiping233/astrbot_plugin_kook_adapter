@@ -32,7 +32,19 @@ jobs:
 
       - name: Zip Project
         run: |
-          zip -r ${{ env.zip_name }} . -x "*.git*" "*.github*" "*__pycache__*" "*.pytest_cache*" "tests/**"
+          zip -r ${{ env.zip_name }} . \
+           -x ".*" \
+           -x "*/.*" \
+           -x "__pycache__/*" \
+           -x "**/__pycache__/*" \
+           -x "tests/*" \
+           -x "data/*" \
+           -x "pyproject.toml" \
+           -x "ruff.toml" \
+           -x "uv.lock" 
+
+      - name: Inspect package
+        run: zipinfo -1 ${{ env.zip_name }} 
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
