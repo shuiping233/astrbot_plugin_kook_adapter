@@ -31,15 +31,20 @@ def test_kook_card_message_container_append():
 
 
 @pytest.mark.parametrize(
-    "input",
-    [(KookCardMessage())],
+    "input, expect_container_length",
+    [
+        ([KookCardMessage()], 1),
+        ([KookCardMessage()] * 2, 2),
+    ],
 )
-def test_kook_card_message_container_to_json(input):
-    container = KookCardMessageContainer([input])
+def test_kook_card_message_container_to_json(
+    input: list[KookCardMessage], expect_container_length: int
+):
+    container = KookCardMessageContainer(input)
     json_output = container.to_json()
     output = json.loads(json_output)
     assert isinstance(output, list)
-    assert len(output) == 1
+    assert len(output) == expect_container_length
 
 
 def test_all_kook_card_type():
