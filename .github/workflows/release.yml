@@ -32,16 +32,21 @@ jobs:
 
       - name: Zip Project
         run: |
-          zip -r ${{ env.zip_name }} . \
-           -x ".*" \
-           -x "*/.*" \
-           -x "__pycache__/*" \
-           -x "**/__pycache__/*" \
-           -x "tests/*" \
-           -x "data/*" \
-           -x "pyproject.toml" \
-           -x "ruff.toml" \
-           -x "uv.lock" 
+          PARENT_DIR=$(dirname "${{ github.workspace }}")
+          CURRENT_DIR=$(basename "${{ github.workspace }}")
+          
+          cd "$PARENT_DIR"
+          
+          zip -r "${{ github.workspace }}/${{ env.zip_name }}" "$CURRENT_DIR" \
+            -x "$CURRENT_DIR/.*" \
+            -x "**/__pycache__/**" \
+            -x "$CURRENT_DIR/tests/**" \
+            -x "$CURRENT_DIR/data/**" \
+            -x "$CURRENT_DIR/pyproject.toml" \
+            -x "$CURRENT_DIR/ruff.toml" \
+            -x "$CURRENT_DIR/uv.lock" \
+            -x "$CURRENT_DIR/.git/**" \
+            -x "$CURRENT_DIR/.github/**"
 
       - name: Inspect package
         run: zipinfo -1 ${{ env.zip_name }} 
