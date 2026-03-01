@@ -3,8 +3,14 @@ name: Unit Test
 on:
   push:
     branches: [ "main", "master" ]
+    paths: &python_paths
+      - "**.py"
+      - "metadata.yaml"
+      - "requirements.txt"
+      - "pyproject.toml"
   pull_request:
     branches: [ "*" ]
+    paths: *python_paths
 
 jobs:
   test:
