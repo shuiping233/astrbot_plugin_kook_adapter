@@ -2,6 +2,7 @@ name: Build and Release
 
 env:
   previous_tag: ""
+  sync_version_script_name: "get_latest_tag_and_set.sh"
   zip_name: "astrbot_plugin_kook_adapter.zip"
 
 on:
@@ -24,15 +25,15 @@ jobs:
       - name: Sync version files
         id: sync_step
         run: |
-          chmod +x ./sync_version.sh
-          ./sync_version.sh
+          chmod +x ./${{ env.sync_version_script_name }}
+          ./${{ env.sync_version_script_name }}
 
       - name: Commit and Push Changes
         if: steps.sync_step.outputs.should_sync == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: bump version to ${{ steps.sync_step.outputs.tag_name }} [skip ci]"
-          file_pattern: 'metadata.yaml pyproject.toml'
+          file_pattern: "metadata.yaml pyproject.toml"
 
       - run: echo "previous_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo '')" >> $GITHUB_ENV
 
@@ -47,9 +48,9 @@ jobs:
         run: |
           PARENT_DIR=$(dirname "${{ github.workspace }}")
           CURRENT_DIR=$(basename "${{ github.workspace }}")
-          
+
           cd "$PARENT_DIR"
-          
+
           zip -r "${{ github.workspace }}/${{ env.zip_name }}" "$CURRENT_DIR" \
            -x "$CURRENT_DIR/.*" \
            -x "$CURRENT_DIR/*/.*" \
@@ -59,10 +60,10 @@ jobs:
            -x "$CURRENT_DIR/data/*" \
            -x "$CURRENT_DIR/pyproject.toml" \
            -x "$CURRENT_DIR/ruff.toml" \
-           -x "$CURRENT_DIR/uv.lock" 
+           -x "$CURRENT_DIR/uv.lock"
 
       - name: Inspect package
-        run: zipinfo -1 ${{ env.zip_name }} 
+        run: zipinfo -1 ${{ env.zip_name }}
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v7
