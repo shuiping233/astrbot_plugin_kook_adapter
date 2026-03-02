@@ -45,6 +45,29 @@ jobs:
         if: env.previous_tag
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          filter-author: (github-actions|github-actions\[bot\]|dependabot|renovate\\[bot\\])
+          # 过滤掉 Release 相关的提交，避免重复记录
+          filter: '[R|r]elease[d]\s+[v|V]\d(\.\d+){0,2}'
+          template: |
+            ## 📝 更新日志 (${{ steps.sync_step.outputs.tag_name }})
+
+            ### 🌟 新特性
+            {{feat,feature}}
+
+            ### 🛠️ 修复与优化
+            {{fix,bugfix,perf,refactor}}
+
+            ### 📖 文档更新
+            {{docs,doc}}
+
+            ---
+            #### 🏗️ 内部变更 (忽略即可)
+            {{chore,style,ci,test,unittest||🔶 _无重大内部变动_}}
+
+            #### 其他
+            {{__unknown__}}
+
+            **完整对比记录**: {{comparision}}
 
       - name: Zip Project
         run: |
