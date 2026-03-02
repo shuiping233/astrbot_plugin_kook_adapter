@@ -34,6 +34,8 @@ jobs:
         with:
           commit_message: "chore: bump version to ${{ steps.sync_step.outputs.tag_name }} [skip ci]"
           file_pattern: "metadata.yaml pyproject.toml"
+          branch: ${{ github.event.repository.default_branch }}
+          push_options: '--force'
 
       - run: echo "previous_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo '')" >> $GITHUB_ENV
 
