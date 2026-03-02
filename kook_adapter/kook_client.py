@@ -12,37 +12,48 @@ import websockets
 
 from astrbot import logger
 from astrbot.core.platform.message_type import MessageType
+from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
-from .kook_types import KookMessageType, KookApiPaths
+from .kook_config import KookConfig
+from .kook_types import KookApiPaths, KookMessageType
+
+ALLOWED_ASSETS_DIR = Path(get_astrbot_data_path()).resolve()
 
 
 class KookClient:
-    def __init__(self, token, event_callback):
+    def __init__(self, config: KookConfig, event_callback):
+        # 数据字段
+        self.config = config
         self._bot_id = ""
+        self._bot_name = ""
+
+        # 资源字段
         self._http_client = aiohttp.ClientSession(
             headers={
-                "Authorization": f"Bot {token}",
+                "Authorization": f"Bot {self.config.token}",
             }
         )
         self.event_callback = event_callback  # 回调函数，用于处理接收到的事件
         self.ws = None
+        self.heartbeat_task = None
+        self._stop_event = asyncio.Event()  # 用于通知连接结束
+
+        # 状态/计算字段
         self.running = False
         self.session_id = None
         self.last_sn = 0  # 记录最后处理的消息序号
-        self.heartbeat_task = None
-        self.reconnect_delay = 1  # 重连延迟，指数退避
-        self.max_reconnect_delay = 60  # 最大重连延迟
-        self.heartbeat_interval = 30  # 心跳间隔
-        self.heartbeat_timeout = 6  # 心跳超时时间
         self.last_heartbeat_time = 0
         self.heartbeat_failed_count = 0
-        self.max_heartbeat_failures = 3  # 最大心跳失败次数
 
     @property
     def bot_id(self):
         return self._bot_id
 
-    async def get_bot_id(self) -> str:
+    @property
+    def bot_name(self):
+        return self._bot_name
+
+    async def get_bot_info(self) -> str:
         """获取机器人账号ID"""
         url = KookApiPaths.USER_ME
 
@@ -58,7 +69,12 @@ class KookClient:
                     return ""
 
                 bot_id: str = data["data"]["id"]
+                self._bot_id = bot_id
                 logger.info(f"[KOOK] 获取机器人账号ID成功: {bot_id}")
+                bot_name: str = data["data"]["nickname"] or data["data"]["username"]
+                self._bot_name = bot_name
+                logger.info(f"[KOOK] 获取机器人名称成功: {self._bot_name}")
+
                 return bot_id
         except Exception as e:
             logger.error(f"[KOOK] 获取机器人账号ID异常: {e}")
@@ -87,8 +103,8 @@ class KookClient:
                     logger.error(f"[KOOK] 获取gateway失败: {data}")
                     return None
 
-                gateway_url = data["data"]["url"]
-                logger.info(f"[KOOK] 获取gateway成功: {gateway_url}")
+                gateway_url: str = data["data"]["url"]
+                logger.info(f"[KOOK] 获取gateway成功: {gateway_url.split('?')[0]}")
                 return gateway_url
         except Exception as e:
             logger.error(f"[KOOK] 获取gateway异常: {e}")
@@ -96,19 +112,22 @@ class KookClient:
 
     async def connect(self, resume=False):
         """连接WebSocket"""
+        if self.ws:
+            try:
+                await self.ws.close()
+            except Exception:
+                pass
+            self.ws = None
+        self._stop_event.clear()
         try:
             # 获取gateway地址
             gateway_url = await self.get_gateway_url(
                 resume=resume, sn=self.last_sn, session_id=self.session_id
             )
-            bot_id = await self.get_bot_id()
+            await self.get_bot_info()
 
             if not gateway_url:
                 return False
-            if not bot_id:
-                return False
-
-            self._bot_id = bot_id
 
             # 连接WebSocket
             self.ws = await websockets.connect(gateway_url)
@@ -126,6 +145,12 @@ class KookClient:
 
         except Exception as e:
             logger.error(f"[KOOK] WebSocket 连接失败: {e}")
+            if self.ws:
+                try:
+                    await self.ws.close()
+                except Exception:
+                    pass
+                self.ws = None
             return False
 
     async def listen(self):
@@ -163,6 +188,7 @@ class KookClient:
             logger.error(f"[KOOK] WebSocket 监听异常: {e}")
         finally:
             self.running = False
+            self._stop_event.set()
 
     async def _handle_signal(self, data):
         """处理不同类型的信令"""
@@ -197,8 +223,8 @@ class KookClient:
         if code == 0:
             self.session_id = hello_data.get("session_id")
             logger.info(f"[KOOK] 握手成功，session_id: {self.session_id}")
-            # 重置重连延迟
-            self.reconnect_delay = 1
+            # TODO 重置重连延迟
+            # self.reconnect_delay = 1
         else:
             logger.error(f"[KOOK] 握手失败，错误码: {code}")
             if code == 40103:  # token过期
@@ -229,8 +255,10 @@ class KookClient:
         """心跳循环"""
         while self.running:
             try:
-                # 随机化心跳间隔 (30±5秒)
-                interval = self.heartbeat_interval + random.randint(-5, 5)
+                # 随机化心跳间隔 (±5秒)
+                interval = max(
+                    1, self.config.heartbeat_interval + random.randint(-5, 5)
+                )
                 await asyncio.sleep(interval)
 
                 if not self.running:
@@ -240,16 +268,22 @@ class KookClient:
                 await self._send_ping()
 
                 # 等待PONG响应
-                await asyncio.sleep(self.heartbeat_timeout)
+                await asyncio.sleep(self.config.heartbeat_timeout)
 
                 # 检查是否收到PONG响应
-                if time.time() - self.last_heartbeat_time > self.heartbeat_timeout:
+                if (
+                    time.time() - self.last_heartbeat_time
+                    > self.config.heartbeat_timeout
+                ):
                     self.heartbeat_failed_count += 1
                     logger.warning(
                         f"[KOOK] 心跳超时，失败次数: {self.heartbeat_failed_count}"
                     )
 
-                    if self.heartbeat_failed_count >= self.max_heartbeat_failures:
+                    if (
+                        self.heartbeat_failed_count
+                        >= self.config.max_heartbeat_failures
+                    ):
                         logger.error("[KOOK] 心跳失败次数过多，准备重连")
                         self.running = False
                         break
@@ -268,30 +302,6 @@ class KookClient:
             logger.debug(f"[KOOK] 发送心跳，sn: {self.last_sn}")
         except Exception as e:
             logger.error(f"[KOOK] 发送心跳失败: {e}")
-
-    async def reconnect(self):
-        """重连方法"""
-        logger.info(f"[KOOK] 开始重连，延迟: {self.reconnect_delay}秒")
-        await asyncio.sleep(self.reconnect_delay)
-
-        # 关闭当前连接
-        await self.close()
-
-        # 尝试重连
-        success = await self.connect(resume=True)
-
-        if success:
-            # 重连成功，重置延迟
-            self.reconnect_delay = 1
-            logger.info("[KOOK] 重连成功")
-        else:
-            # 重连失败，增加延迟（指数退避）
-            self.reconnect_delay = min(
-                self.reconnect_delay * 2, self.max_reconnect_delay
-            )
-            logger.warning(f"[KOOK] 重连失败，下次延迟: {self.reconnect_delay}秒")
-
-        return success
 
     async def send_text(
         self,
@@ -341,7 +351,7 @@ class KookClient:
         """上传文件到kook,获得远端资源url
         接口定义参见: https://developer.kookapp.cn/doc/http/asset
         """
-        if file_url is None:
+        if not file_url:
             return ""
 
         bytes_data: bytes | None = None
@@ -350,17 +360,43 @@ class KookClient:
             filename = file_url.split("/")[-1]
             return file_url
 
-        elif file_url.startswith(("base64://", "base64:///")):
-            # b64_str = file_url.replace("base64:///", "")
-            b64_str = file_url.replace("base64://", "")
+        elif file_url.startswith("base64:///"):
+            # b64decode的时候得开头留一个'/'的, 不然会报错
+            b64_str = file_url.removeprefix("base64://")
             bytes_data = base64.b64decode(b64_str)
 
-        else:
-            file_url = file_url.replace("file:///", "")
-            file_url = file_url.replace("file://", "")
-            filename = Path(file_url).name
-            async with aiofiles.open(file_url, "rb") as f:
+        elif file_url.startswith("file://"):
+            if file_url.startswith("file:///"):
+                file_url = file_url.removeprefix("file:///")
+            else:
+                file_url = file_url.removeprefix("file://")
+
+            try:
+                target_path = Path(file_url).resolve()
+            except Exception as exp:
+                logger.error(f'[KOOK] 获取文件 "{file_url}" 绝对路径失败: "{exp}"')
+                raise FileNotFoundError(
+                    f'获取文件 "{file_url}" 绝对路径失败: "{exp}"'
+                ) from exp
+
+            # 安全验证
+            if not target_path.is_relative_to(ALLOWED_ASSETS_DIR):
+                logger.error(
+                    f'[KOOK] 拒绝访问: "{target_path.as_posix()}" 不在允许的目录范围内'
+                )
+                raise PermissionError(
+                    f'拒绝访问: "{target_path.name}"文件路径不在允许的目录范围内'
+                )
+
+            if not target_path.is_file():
+                raise FileNotFoundError(f"文件不存在: {target_path.name}")
+
+            filename = target_path.name
+            async with aiofiles.open(target_path, "rb") as f:
                 bytes_data = await f.read()
+
+        else:
+            raise ValueError(f'[KOOK] 不支持的文件资源类型: "{file_url}"')
 
         data = aiohttp.FormData()
         data.add_field("file", bytes_data, filename=filename)
@@ -371,22 +407,31 @@ class KookClient:
                 if resp.status == 200:
                     result: dict = await resp.json()
                     if result.get("code") == 0:
-                        logger.info("[KOOK] 发送文件消息成功")
+                        logger.info("[KOOK] 上传文件到kook服务器成功")
                         remote_url = result["data"]["url"]
                         logger.debug(f"[KOOK] 文件远端URL: {remote_url}")
                         return remote_url
                     else:
-                        logger.error(f"[KOOK] 发送文件消息失败: {result}")
+                        raise RuntimeError(f"上传文件到kook服务器失败: {result}")
                 else:
-                    logger.error(f"[KOOK] 发送文件消息HTTP错误: {resp.status}")
+                    raise RuntimeError(
+                        f"上传文件到kook服务器 HTTP错误: {resp.status} , {await resp.text()}"
+                    )
+        except RuntimeError:
+            raise
         except Exception as e:
-            logger.error(f"[KOOK] 发送文件消息异常: {e}")
+            raise RuntimeError(f"上传文件到kook服务器异常: {e}") from e
 
         return ""
+
+    async def wait_until_closed(self):
+        """提供给外部调用的等待方法"""
+        await self._stop_event.wait()
 
     async def close(self):
         """关闭连接"""
         self.running = False
+        self._stop_event.set()
 
         if self.heartbeat_task:
             self.heartbeat_task.cancel()
