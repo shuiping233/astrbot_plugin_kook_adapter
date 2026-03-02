@@ -12,7 +12,7 @@ import websockets
 
 from astrbot import logger
 
-from .kook_types import KookMessageType
+from .kook_types import KookMessageType, KookApiPaths
 
 
 class KookClient:
@@ -43,7 +43,7 @@ class KookClient:
 
     async def get_bot_id(self) -> str:
         """获取机器人账号ID"""
-        url = "https://www.kookapp.cn/api/v3/user/me"
+        url = KookApiPaths.USER_ME
 
         try:
             async with self._http_client.get(url) as resp:
@@ -65,7 +65,7 @@ class KookClient:
 
     async def get_gateway_url(self, resume=False, sn=0, session_id=None):
         """获取网关连接地址"""
-        url = "https://www.kookapp.cn/api/v3/gateway/index"
+        url = KookApiPaths.GATEWAY_INDEX
 
         # 构建连接参数
         params = {}
@@ -303,7 +303,7 @@ class KookClient:
         消息发送接口文档参见: https://developer.kookapp.cn/doc/http/message#%E5%8F%91%E9%80%81%E9%A2%91%E9%81%93%E8%81%8A%E5%A4%A9%E6%B6%88%E6%81%AF
         KMarkdown格式参见: https://developer.kookapp.cn/doc/kmarkdown-desc
         """
-        url = "https://www.kookapp.cn/api/v3/message/create"
+        url = KookApiPaths.CHANNEL_MESSAGE_CREATE
 
         payload = {"target_id": channel_id, "content": content, "type": message_type}
         if reply_message_id:
@@ -355,7 +355,7 @@ class KookClient:
         data = aiohttp.FormData()
         data.add_field("file", bytes_data, filename=filename)
 
-        url = "https://www.kookapp.cn/api/v3/asset/create"
+        url = KookApiPaths.ASSET_CREATE
         try:
             async with self._http_client.post(url, data=data) as resp:
                 if resp.status == 200:
