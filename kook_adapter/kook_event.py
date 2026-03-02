@@ -8,16 +8,16 @@ from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.platform import AstrBotMessage, PlatformMetadata
 from astrbot.core.message.components import (
-    File,
-    Image,
-    Plain,
-    Video,
     At,
     AtAll,
     BaseMessageComponent,
+    File,
+    Image,
     Json,
+    Plain,
     Record,
     Reply,
+    Video,
 )
 
 from .kook_client import KookClient
