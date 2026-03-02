@@ -7,6 +7,21 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.dataclasses import dataclass
 
 
+class KookApiPaths:
+    """Kook Api 路径"""
+
+    BASE_URL = "https://www.kookapp.cn"
+    API_VERSION_PATH = "/api/v3"
+
+    # 初始化相关
+    USER_ME = f"{BASE_URL}{API_VERSION_PATH}/user/me"
+    GATEWAY_INDEX = f"{BASE_URL}{API_VERSION_PATH}/gateway/index"
+
+    # 消息相关
+    CHANNEL_MESSAGE_CREATE = f"{BASE_URL}{API_VERSION_PATH}/message/create"
+    ASSET_CREATE = f"{BASE_URL}{API_VERSION_PATH}/asset/create"
+
+
 # 定义参见kook事件结构文档: https://developer.kookapp.cn/doc/event/event-introduction
 class KookMessageType(IntEnum):
     TEXT = 1
