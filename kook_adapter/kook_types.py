@@ -18,8 +18,11 @@ class KookApiPaths:
     GATEWAY_INDEX = f"{BASE_URL}{API_VERSION_PATH}/gateway/index"
 
     # 消息相关
-    CHANNEL_MESSAGE_CREATE = f"{BASE_URL}{API_VERSION_PATH}/message/create"
     ASSET_CREATE = f"{BASE_URL}{API_VERSION_PATH}/asset/create"
+    ## 频道消息
+    CHANNEL_MESSAGE_CREATE = f"{BASE_URL}{API_VERSION_PATH}/message/create"
+    ## 私聊消息
+    DIRECT_MESSAGE_CREATE = f"{BASE_URL}{API_VERSION_PATH}/direct-message/create"
 
 
 # 定义参见kook事件结构文档: https://developer.kookapp.cn/doc/event/event-introduction

@@ -158,19 +158,32 @@ class KookPlatformAdapter(Platform):
 
     async def convert_message(self, data: dict) -> AstrBotMessage:
         abm = AstrBotMessage()
-        abm.type = (
-            MessageType.GROUP_MESSAGE
-            if data.get("channel_type") == "GROUP"
-            else MessageType.FRIEND_MESSAGE
-        )
-        abm.group_id = data.get("target_id")
+        abm.raw_message = data
+        abm.self_id = self.client.bot_id
+
+        channel_type = data.get("channel_type")
+        # channel_type定义: https://developer.kookapp.cn/doc/event/event-introduction
+        match channel_type:
+            case "GROUP":
+                abm.type = MessageType.GROUP_MESSAGE
+                abm.group_id = data.get("target_id")
+                abm.session_id = data.get("target_id")
+            case "PERSON":
+                abm.type = MessageType.FRIEND_MESSAGE
+                abm.group_id = ""
+                abm.session_id = data.get("author_id")
+            case "BROADCAST":
+                abm.type = MessageType.OTHER_MESSAGE
+                abm.group_id = data.get("target_id")
+                abm.session_id = data.get("target_id")
+            case _:
+                raise ValueError(f"[KOOK] 不支持的频道类型: {channel_type}")
+
         abm.sender = MessageMember(
             user_id=data.get("author_id"),
             nickname=data.get("extra", {}).get("author", {}).get("username", ""),
         )
-        abm.raw_message = data
-        abm.self_id = self.client.bot_id
-        abm.session_id = data.get("target_id")
+
         abm.message_id = data.get("msg_id")
 
         # 普通文本消息

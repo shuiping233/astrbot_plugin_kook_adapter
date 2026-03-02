@@ -19,6 +19,7 @@ from astrbot.core.message.components import (
     Reply,
     Video,
 )
+from astrbot.core.platform import MessageType
 
 from .kook_client import KookClient
 from .kook_types import (
@@ -42,6 +43,7 @@ class KookEvent(AstrMessageEvent):
         super().__init__(message_str, message_obj, platform_meta, session_id)
         self.client = client
         self.channel_id = message_obj.group_id or message_obj.session_id
+        self.astrbot_message_type: MessageType = message_obj.type
         self._file_message_counter = 0
 
     def _warp_message(
@@ -168,6 +170,12 @@ class KookEvent(AstrMessageEvent):
             if not item.text:
                 logger.debug(f'[Kook] 跳过空消息,类型为"{item.type}"')
                 continue
-            await self.client.send_text(self.channel_id, item.text, item.type, reply_id)
+            await self.client.send_text(
+                self.channel_id,
+                item.text,
+                self.astrbot_message_type,
+                item.type,
+                reply_id,
+            )
 
         await super().send(message)

@@ -11,6 +11,7 @@ import aiohttp
 import websockets
 
 from astrbot import logger
+from astrbot.core.platform.message_type import MessageType
 
 from .kook_types import KookMessageType, KookApiPaths
 
@@ -294,9 +295,10 @@ class KookClient:
 
     async def send_text(
         self,
-        channel_id: str,
+        target_id: str,
         content: str,
-        message_type: KookMessageType,
+        astrbot_message_type: MessageType,
+        kook_message_type: KookMessageType,
         reply_message_id: str | int = "",
     ):
         """发送文本消息
@@ -304,8 +306,14 @@ class KookClient:
         KMarkdown格式参见: https://developer.kookapp.cn/doc/kmarkdown-desc
         """
         url = KookApiPaths.CHANNEL_MESSAGE_CREATE
+        if astrbot_message_type == MessageType.FRIEND_MESSAGE:
+            url = KookApiPaths.DIRECT_MESSAGE_CREATE
 
-        payload = {"target_id": channel_id, "content": content, "type": message_type}
+        payload = {
+            "target_id": target_id,
+            "content": content,
+            "type": kook_message_type,
+        }
         if reply_message_id:
             payload["quote"] = reply_message_id
             payload["reply_msg_id"] = reply_message_id
@@ -318,14 +326,16 @@ class KookClient:
                         logger.info("[KOOK] 发送消息成功")
                     else:
                         logger.error(
-                            f'[KOOK] 发送kook消息类型"{message_type.name}"失败: {result}'
+                            f'[KOOK] 发送kook消息类型 "{kook_message_type.name}" 失败: {result}'
                         )
                 else:
                     logger.error(
-                        f'[KOOK] 发送kook消息类型"{message_type.name}"HTTP错误: {resp.status}'
+                        f'[KOOK] 发送kook消息类型 "{kook_message_type.name}" HTTP错误: {resp.status} , 响应内容 : {await resp.text()}'
                     )
         except Exception as e:
-            logger.error(f'[KOOK] 发送kook消息类型"{message_type.name}"异常: {e}')
+            logger.error(
+                f'[KOOK] 发送kook消息类型 "{kook_message_type.name}" 异常: {e}'
+            )
 
     async def upload_asset(self, file_url: str | None) -> str:
         """上传文件到kook,获得远端资源url
