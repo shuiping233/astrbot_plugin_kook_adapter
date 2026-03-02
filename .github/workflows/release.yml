@@ -21,6 +21,19 @@ jobs:
         with:
           fetch-depth: 0 # 获取完整历史以生成准确的 changelog
 
+      - name: Sync version files
+        id: sync_step
+        run: |
+          chmod +x ./sync_version.sh
+          ./sync_version.sh
+
+      - name: Commit and Push Changes
+        if: steps.sync_step.outputs.should_sync == 'true'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: bump version to ${{ steps.sync_step.outputs.tag_name }} [skip ci]"
+          file_pattern: 'metadata.yaml pyproject.toml'
+
       - run: echo "previous_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo '')" >> $GITHUB_ENV
 
       - name: Generate Changelog
