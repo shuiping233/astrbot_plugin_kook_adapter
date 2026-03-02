@@ -17,9 +17,12 @@ from .kook_types import KookMessageType
 
 class KookClient:
     def __init__(self, token, event_callback):
-        self.token = token
-        self.headers = {"Authorization": f"Bot {self.token}"}
         self._bot_id = ""
+        self._http_client = aiohttp.ClientSession(
+            headers={
+                "Authorization": f"Bot {token}",
+            }
+        )
         self.event_callback = event_callback  # 回调函数，用于处理接收到的事件
         self.ws = None
         self.running = False
@@ -42,26 +45,23 @@ class KookClient:
         """获取机器人账号ID"""
         url = "https://www.kookapp.cn/api/v3/user/me"
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(url, headers=self.headers) as resp:
-                    if resp.status != 200:
-                        logger.error(
-                            f"[KOOK] 获取机器人账号ID失败，状态码: {resp.status}"
-                        )
-                        return ""
+        try:
+            async with self._http_client.get(url) as resp:
+                if resp.status != 200:
+                    logger.error(f"[KOOK] 获取机器人账号ID失败，状态码: {resp.status}")
+                    return ""
 
-                    data = await resp.json()
-                    if data.get("code") != 0:
-                        logger.error(f"[KOOK] 获取机器人账号ID失败: {data}")
-                        return ""
+                data = await resp.json()
+                if data.get("code") != 0:
+                    logger.error(f"[KOOK] 获取机器人账号ID失败: {data}")
+                    return ""
 
-                    bot_id: str = data["data"]["id"]
-                    logger.info(f"[KOOK] 获取机器人账号ID成功: {bot_id}")
-                    return bot_id
-            except Exception as e:
-                logger.error(f"[KOOK] 获取机器人账号ID异常: {e}")
-                return ""
+                bot_id: str = data["data"]["id"]
+                logger.info(f"[KOOK] 获取机器人账号ID成功: {bot_id}")
+                return bot_id
+        except Exception as e:
+            logger.error(f"[KOOK] 获取机器人账号ID异常: {e}")
+            return ""
 
     async def get_gateway_url(self, resume=False, sn=0, session_id=None):
         """获取网关连接地址"""
@@ -75,26 +75,23 @@ class KookClient:
             if session_id:
                 params["session_id"] = session_id
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(
-                    url, headers=self.headers, params=params
-                ) as resp:
-                    if resp.status != 200:
-                        logger.error(f"[KOOK] 获取gateway失败，状态码: {resp.status}")
-                        return None
+        try:
+            async with self._http_client.get(url, params=params) as resp:
+                if resp.status != 200:
+                    logger.error(f"[KOOK] 获取gateway失败，状态码: {resp.status}")
+                    return None
 
-                    data = await resp.json()
-                    if data.get("code") != 0:
-                        logger.error(f"[KOOK] 获取gateway失败: {data}")
-                        return None
+                data = await resp.json()
+                if data.get("code") != 0:
+                    logger.error(f"[KOOK] 获取gateway失败: {data}")
+                    return None
 
-                    gateway_url = data["data"]["url"]
-                    logger.info(f"[KOOK] 获取gateway成功: {gateway_url}")
-                    return gateway_url
-            except Exception as e:
-                logger.error(f"[KOOK] 获取gateway异常: {e}")
-                return None
+                gateway_url = data["data"]["url"]
+                logger.info(f"[KOOK] 获取gateway成功: {gateway_url}")
+                return gateway_url
+        except Exception as e:
+            logger.error(f"[KOOK] 获取gateway异常: {e}")
+            return None
 
     async def connect(self, resume=False):
         """连接WebSocket"""
@@ -135,7 +132,7 @@ class KookClient:
         try:
             while self.running:
                 try:
-                    msg = await asyncio.wait_for(self.ws.recv(), timeout=10)
+                    msg = await asyncio.wait_for(self.ws.recv(), timeout=10)  # type: ignore
 
                     if isinstance(msg, bytes):
                         try:
@@ -266,7 +263,7 @@ class KookClient:
         """发送心跳PING"""
         try:
             ping_data = {"s": 2, "sn": self.last_sn}
-            await self.ws.send(json.dumps(ping_data))
+            await self.ws.send(json.dumps(ping_data))  # type: ignore
             logger.debug(f"[KOOK] 发送心跳，sn: {self.last_sn}")
         except Exception as e:
             logger.error(f"[KOOK] 发送心跳失败: {e}")
@@ -307,30 +304,26 @@ class KookClient:
         KMarkdown格式参见: https://developer.kookapp.cn/doc/kmarkdown-desc
         """
         url = "https://www.kookapp.cn/api/v3/message/create"
-        headers = {
-            "Authorization": f"Bot {self.token}",
-            "Content-Type": "application/json",
-        }
+
         payload = {"target_id": channel_id, "content": content, "type": message_type}
         if reply_message_id:
             payload["quote"] = reply_message_id
             payload["reply_msg_id"] = reply_message_id
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, json=payload) as resp:
-                    if resp.status == 200:
-                        result = await resp.json()
-                        if result.get("code") == 0:
-                            logger.info("[KOOK] 发送消息成功")
-                        else:
-                            logger.error(
-                                f'[KOOK] 发送kook消息类型"{message_type.name}"失败: {result}'
-                            )
+            async with self._http_client.post(url, json=payload) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                    if result.get("code") == 0:
+                        logger.info("[KOOK] 发送消息成功")
                     else:
                         logger.error(
-                            f'[KOOK] 发送kook消息类型"{message_type.name}"HTTP错误: {resp.status}'
+                            f'[KOOK] 发送kook消息类型"{message_type.name}"失败: {result}'
                         )
+                else:
+                    logger.error(
+                        f'[KOOK] 发送kook消息类型"{message_type.name}"HTTP错误: {resp.status}'
+                    )
         except Exception as e:
             logger.error(f'[KOOK] 发送kook消息类型"{message_type.name}"异常: {e}')
 
@@ -340,11 +333,6 @@ class KookClient:
         """
         if file_url is None:
             return ""
-
-        url = "https://www.kookapp.cn/api/v3/asset/create"
-        headers = {
-            "Authorization": f"Bot {self.token}",
-        }
 
         bytes_data: bytes | None = None
         filename = "unknown"
@@ -366,20 +354,21 @@ class KookClient:
 
         data = aiohttp.FormData()
         data.add_field("file", bytes_data, filename=filename)
+
+        url = "https://www.kookapp.cn/api/v3/asset/create"
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, data=data) as resp:
-                    if resp.status == 200:
-                        result: dict = await resp.json()
-                        if result.get("code") == 0:
-                            logger.info("[KOOK] 发送文件消息成功")
-                            remote_url = result["data"]["url"]
-                            logger.debug(f"[KOOK] 文件远端URL: {remote_url}")
-                            return remote_url
-                        else:
-                            logger.error(f"[KOOK] 发送文件消息失败: {result}")
+            async with self._http_client.post(url, data=data) as resp:
+                if resp.status == 200:
+                    result: dict = await resp.json()
+                    if result.get("code") == 0:
+                        logger.info("[KOOK] 发送文件消息成功")
+                        remote_url = result["data"]["url"]
+                        logger.debug(f"[KOOK] 文件远端URL: {remote_url}")
+                        return remote_url
                     else:
-                        logger.error(f"[KOOK] 发送文件消息HTTP错误: {resp.status}")
+                        logger.error(f"[KOOK] 发送文件消息失败: {result}")
+                else:
+                    logger.error(f"[KOOK] 发送文件消息HTTP错误: {resp.status}")
         except Exception as e:
             logger.error(f"[KOOK] 发送文件消息异常: {e}")
 
@@ -401,5 +390,8 @@ class KookClient:
                 await self.ws.close()
             except Exception as e:
                 logger.error(f"[KOOK] 关闭WebSocket异常: {e}")
+
+        if self._http_client:
+            await self._http_client.close()
 
         logger.info("[KOOK] 连接已关闭")
