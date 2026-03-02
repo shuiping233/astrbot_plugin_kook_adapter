@@ -47,7 +47,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           filter-author: (github-actions|github-actions\[bot\]|dependabot|renovate\\[bot\\])
           # 过滤掉 Release 相关的提交，避免重复记录
-          filter: '[R|r]elease[d]\s+[v|V]\d(\.\d+){0,2}'
+          filter: '([R|r]elease[d]\s+[v|V]\d(\.\d+){0,2}|.*\[skip ci\].*)'
           template: |
             ## 📝 更新日志 (${{ steps.sync_step.outputs.tag_name }})
 
