@@ -11,7 +11,7 @@ on:
       - main
       - master
     tags:
-      - "*"
+      - "v*"
 
 jobs:
   release:
