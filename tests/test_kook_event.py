@@ -155,7 +155,7 @@ def mock_astrbot_message():
         ),
     ],
 )
-async def test_kook_event_warp_message(
+async def test_kook_event_wrap_message(
     input_message: BaseMessageComponent,
     upload_asset_return: str,
     expected_output: OrderMessage,
@@ -180,10 +180,10 @@ async def test_kook_event_warp_message(
 
     if expected_error:
         with pytest.raises(expected_error):
-            await event._warp_message(1, input_message)
+            await event._wrap_message(1, input_message)
         return
 
-    result = await event._warp_message(1, input_message)
+    result = await event._wrap_message(1, input_message)
     assert result == expected_output
 
 
